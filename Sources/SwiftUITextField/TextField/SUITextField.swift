@@ -123,7 +123,7 @@ where InputView: View, InputAccessoryView: View, LeftView: View, RightView: View
     @Binding private var text: String
     private var placeholder: TextType?
     private var autoSizeInputView: Bool
-    private var inputView: InputView
+    @ViewBuilder private var inputView: (UITextDocumentProxy) -> InputView
     private var inputAccessoryView: InputAccessoryView
     private var leftView: LeftView
     private var rightView: RightView
@@ -146,7 +146,7 @@ where InputView: View, InputAccessoryView: View, LeftView: View, RightView: View
         autoSizeInputView: Bool,
         @ViewBuilder leftView: () -> LeftView,
         @ViewBuilder rightView: () -> RightView,
-        @ViewBuilder inputView: () -> InputView,
+        @ViewBuilder inputView: @escaping (UITextDocumentProxy) -> InputView,
         @ViewBuilder inputAccessoryView: () -> InputAccessoryView
     ) {
         self._text = text
@@ -154,7 +154,7 @@ where InputView: View, InputAccessoryView: View, LeftView: View, RightView: View
         self.autoSizeInputView = autoSizeInputView
         self.leftView = leftView()
         self.rightView = rightView()
-        self.inputView = inputView()
+        self.inputView = inputView
         self.inputAccessoryView = inputAccessoryView()
     }
 
@@ -176,7 +176,7 @@ public extension SUITextField {
             autoSizeInputView: false,
             leftView: { EmptyView() },
             rightView: { EmptyView() },
-            inputView: { EmptyView() },
+            inputView: { _ in EmptyView() },
             inputAccessoryView: { EmptyView() }
         )
     }
@@ -193,7 +193,7 @@ public extension SUITextField {
             autoSizeInputView: false,
             leftView: { EmptyView() },
             rightView: { EmptyView() },
-            inputView: { EmptyView() },
+            inputView: { _ in EmptyView() },
             inputAccessoryView: { EmptyView() }
         )
     }
@@ -227,7 +227,7 @@ public extension SUITextField {
             autoSizeInputView: false,
             leftView: { EmptyView() },
             rightView: { EmptyView() },
-            inputView: { EmptyView() },
+            inputView: { _ in EmptyView() },
             inputAccessoryView: { EmptyView() }
         )
         if formatPolicy == .onCommit {
@@ -398,7 +398,7 @@ public extension SUITextField {
             autoSizeInputView: false,
             leftView: { EmptyView() },
             rightView: { EmptyView() },
-            inputView: { EmptyView() },
+            inputView: { _ in EmptyView() },
             inputAccessoryView: { EmptyView() }
         )
         if formatPolicy == .onCommit {
@@ -544,7 +544,7 @@ public extension SUITextField {
             autoSizeInputView: false,
             leftView: { EmptyView() },
             rightView: { EmptyView() },
-            inputView: { EmptyView() },
+            inputView: { _ in EmptyView() },
             inputAccessoryView: { EmptyView() }
         )
         if formatPolicy == .onCommit {
@@ -697,7 +697,7 @@ public extension SUITextField where InputAccessoryView == EmptyView {
             autoSizeInputView: autoSizeInputView,
             leftView: { leftView },
             rightView: { rightView },
-            inputView: { inputView },
+            inputView: inputView,
             inputAccessoryView: view
         )
         .applyAll(from: self)
@@ -739,7 +739,7 @@ public extension SUITextField where InputView == EmptyView {
     /// - Returns: The modified text field.
     func inputView<Content>(
         autoSize: Bool = true,
-        @ViewBuilder view: () -> Content
+        @ViewBuilder view: @escaping (UITextDocumentProxy) -> Content
     ) -> SUITextField<Content, InputAccessoryView, LeftView, RightView> where Content: View {
         SUITextField<Content, InputAccessoryView, LeftView, RightView>(
             text: $text,
@@ -790,7 +790,7 @@ public extension SUITextField where LeftView == EmptyView {
             autoSizeInputView: autoSizeInputView,
             leftView: view,
             rightView: { rightView },
-            inputView: { inputView },
+            inputView: inputView,
             inputAccessoryView: { inputAccessoryView }
         )
         .applyAll(from: self)
@@ -833,7 +833,7 @@ public extension SUITextField where RightView == EmptyView {
             autoSizeInputView: autoSizeInputView,
             leftView: { leftView },
             rightView: view,
-            inputView: { inputView },
+            inputView: inputView,
             inputAccessoryView: { inputAccessoryView }
         )
         .applyAll(from: self)
@@ -1065,7 +1065,9 @@ public extension SUITextField {
             applyIfDifferent(value: minSize, at: \.minimumFontSize)
         }
 
-        context.coordinator.inputViewController?.rootView = inputView
+        if let inputViewController = context.coordinator.inputViewController {
+            inputViewController.rootView = inputView(inputViewController.textDocumentProxy)
+        }
         context.coordinator.inputAccessoryViewController?.rootView = inputAccessoryView
         
         context.coordinator.leftView?.rootView = leftView
@@ -1104,8 +1106,10 @@ public extension SUITextField {
         private func applyCustomViews(to textField: UITextField) {
             if InputView.self != EmptyView.self {
                 inputViewController = SUIInputViewController<InputView>()
-                inputViewController?.allowSelfSizing = uiKitTextField.autoSizeInputView
-                inputViewController?.controller = .init(rootView: uiKitTextField.inputView)
+                if let inputViewController = inputViewController {
+                    inputViewController.allowSelfSizing = uiKitTextField.autoSizeInputView
+                    inputViewController.controller = .init(rootView: uiKitTextField.inputView(inputViewController.textDocumentProxy))
+                }
                 (textField as! _SUITextField).inputViewController = inputViewController
             }
             if InputAccessoryView.self != EmptyView.self {
